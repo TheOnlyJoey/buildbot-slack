@@ -5,6 +5,8 @@ from __future__ import print_function
 from buildbot.process.results import statusToString
 from buildbot.reporters import utils
 from buildbot.reporters.base import ReporterBase
+from buildbot.reporters.generators.build import BuildStatusGenerator
+from buildbot.reporters.message import MessageFormatterFunction
 from buildbot.util import httpclientservice
 from buildbot.util.logger import Logger
 from twisted.internet import defer
@@ -99,6 +101,12 @@ class SlackStatusPush(ReporterBase):
         )
         self.verbose = verbose
         self.project_ids = {}
+        
+    def _create_default_generators(self):
+        formatter = MessageFormatterFunction(lambda context: context['build'], 'json')
+        return [
+            BuildStatusGenerator(message_formatter=formatter, report_new=True)
+        ]
 
     @defer.inlineCallbacks
     def getAttachments(self, build):
