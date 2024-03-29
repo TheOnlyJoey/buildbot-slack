@@ -54,6 +54,8 @@ class SlackStatusPush(ReporterBase):
         self,
         endpoint,
         attachments=True,
+        commitersInAttachments=False,
+        repositoryInAttachments=False,
         generators=None,
         debug=None,
         verify=None,
@@ -69,6 +71,8 @@ class SlackStatusPush(ReporterBase):
 
         self.endpoint = endpoint
         self.attachments = attachments
+        self.commitersInAttachments = commitersInAttachments
+        self.repositoryInAttachments = repositoryInAttachments
         self._http = yield httpclientservice.HTTPClientService.getService(
             self.master,
             self.endpoint,
@@ -105,26 +109,40 @@ class SlackStatusPush(ReporterBase):
 
             fields = []
             if not sub_build:
-                branch_name = sourcestamp["branch"]
-                if branch_name:
-                    fields.append({"title": "Branch", "value": branch_name, "short": True})
+                branch = sourcestamp["branch"]
+                if branch:
+                    fields.append({"title": "Branch", "value": branch, "short": True})
 
-                repositories = sourcestamp["repository"]
-                if repositories:
-                    fields.append({"title": "Repository", "value": repositories, "short": True})
+                if self.repositoryInAttachments:
+                    repository = sourcestamp["repository"]
+                    if repository:
+                        fields.append(
+                            {
+                                "title": "Repository",
+                                "value": repository,
+                                "short": True
+                            }
+                        )
 
-                responsible_users = yield utils.getResponsibleUsersForBuild(self.master, build["buildid"])
-                if responsible_users:
-                    fields.append(
-                        {
-                            "title": "Committers",
-                            "value": ", ".join(responsible_users),
-                            "short": True,
-                        }
-                    )
+                if self.commitersInAttachments:
+                    users = yield utils.getResponsibleUsersForBuild(self.master, build["buildid"])
+                    if users:
+                        fields.append(
+                            {
+                                "title": "Committers",
+                                "value": ", ".join(users),
+                                "short": True
+                            }
+                        )
 
                 builder_name = build["builder"]["name"]
-                fields.append({"title": "Builder", "value": builder_name, "short": True})
+                fields.append(
+                    {
+                        "title": "Builder",
+                        "value": builder_name,
+                        "short": True
+                    }
+                )
 
             attachments.append(
                 {
@@ -153,18 +171,12 @@ class SlackStatusPush(ReporterBase):
             text += "\n here: " + build["url"]
 
         postData["text"] = text
-
-        extra_params = yield self.getExtraParams(build)
-        postData.update(extra_params)
         return postData
 
     def getMessage(self, report):
         build = report["builds"][0]
         emoji = STATUS_EMOJIS.get(statusToString(build["results"]), ":hourglass_flowing_sand:")
         return f"{emoji} {report['body']}"
-
-    def getExtraParams(self, build):
-        return {}
 
     @defer.inlineCallbacks
     def sendMessage(self, reports):
@@ -174,6 +186,7 @@ class SlackStatusPush(ReporterBase):
         # We also only report on the first build, even if multiple are present
         build = report["builds"][0]
         print(report["builds"])
+
         postData = yield self.getBuildDetailsAndSendMessage(report)
         if not postData:
             return

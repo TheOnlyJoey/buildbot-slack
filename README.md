@@ -33,9 +33,9 @@ c['services'].append(reporters.SlackStatusPush(
 
 ### Additional Options:
 ```
-  channel = None
-  username = None
   attachments = True
+  commitersInAttachments = True
+  repositoryInAttachments = True
 ```
 
 Have fun!
