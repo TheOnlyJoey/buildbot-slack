@@ -37,7 +37,7 @@ class SlackStatusPush(ReporterBase):
     name = "SlackStatusPush"
     neededDetails = dict(wantProperties=True)
 
-    def checkConfig(self, endpoint, channel=None, host_url=None, username=None, **kwargs):
+    def checkConfig(self, endpoint, **kwargs):
         if not isinstance(endpoint, str):
             logger.warning(
                 "[SlackStatusPush] endpoint should be a string, got '%s' instead",
@@ -48,34 +48,12 @@ class SlackStatusPush(ReporterBase):
                 '[SlackStatusPush] endpoint should start with "http...", endpoint: %s',
                 endpoint,
             )
-        if channel and not isinstance(channel, str):
-            logger.warning(
-                "[SlackStatusPush] channel must be a string, got '%s' instead",
-                type(channel).__name__,
-            )
-        if username and not isinstance(username, str):
-            logger.warning(
-                "[SlackStatusPush] username must be a string, got '%s' instead",
-                type(username).__name__,
-            )
-        if host_url and not isinstance(host_url, str):  # deprecated
-            logger.warning(
-                "[SlackStatusPush] host_url must be a string, got '%s' instead",
-                type(host_url).__name__,
-            )
-        elif host_url:
-            logger.warning(
-                "[SlackStatusPush] argument host_url is deprecated and will be removed in the next release: specify the full url as endpoint"
-            )
 
     @defer.inlineCallbacks
     def reconfigService(
         self,
         endpoint,
-        channel=None,
-        username=None,
         attachments=True,
-        verbose=False,
         generators=None,
         debug=None,
         verify=None,
@@ -90,8 +68,6 @@ class SlackStatusPush(ReporterBase):
         yield super().reconfigService(generators=generators, **kwargs)
 
         self.endpoint = endpoint
-        self.channel = channel
-        self.username = username
         self.attachments = attachments
         self._http = yield httpclientservice.HTTPClientService.getService(
             self.master,
@@ -99,9 +75,7 @@ class SlackStatusPush(ReporterBase):
             debug=self.debug,
             verify=self.verify,
         )
-        self.verbose = verbose
-        self.project_ids = {}
-        
+
     def _create_default_generators(self):
         formatter = MessageFormatterFunction(lambda context: context['build'], 'json')
         return [
@@ -117,9 +91,11 @@ class SlackStatusPush(ReporterBase):
             sha = sourcestamp["revision"]
 
             title = "Build #{buildid}".format(buildid=build["buildid"])
+
             project = sourcestamp["project"]
             if project:
                 title += " for {project} {sha}".format(project=project, sha=sha)
+
             sub_build = bool(build["buildset"]["parent_buildid"])
             if sub_build:
                 title += " {relationship}: #{parent_build_id}".format(
@@ -132,9 +108,11 @@ class SlackStatusPush(ReporterBase):
                 branch_name = sourcestamp["branch"]
                 if branch_name:
                     fields.append({"title": "Branch", "value": branch_name, "short": True})
+
                 repositories = sourcestamp["repository"]
                 if repositories:
                     fields.append({"title": "Repository", "value": repositories, "short": True})
+
                 responsible_users = yield utils.getResponsibleUsersForBuild(self.master, build["buildid"])
                 if responsible_users:
                     fields.append(
@@ -144,8 +122,10 @@ class SlackStatusPush(ReporterBase):
                             "short": True,
                         }
                     )
+
                 builder_name = build["builder"]["name"]
                 fields.append({"title": "Builder", "value": builder_name, "short": True})
+
             attachments.append(
                 {
                     "title": title,
@@ -163,6 +143,7 @@ class SlackStatusPush(ReporterBase):
     def getBuildDetailsAndSendMessage(self, report):
         build = report["builds"][0]
         text = yield self.getMessage(report)
+
         postData = {}
         if self.attachments:
             attachments = yield self.getAttachments(build)
@@ -170,10 +151,8 @@ class SlackStatusPush(ReporterBase):
                 postData["attachments"] = attachments
         else:
             text += "\n here: " + build["url"]
-        postData["text"] = text
 
-        if self.channel:
-            postData["channel"] = self.channel
+        postData["text"] = text
 
         extra_params = yield self.getExtraParams(build)
         postData.update(extra_params)
@@ -183,14 +162,6 @@ class SlackStatusPush(ReporterBase):
         build = report["builds"][0]
         emoji = STATUS_EMOJIS.get(statusToString(build["results"]), ":hourglass_flowing_sand:")
         return f"{emoji} {report['body']}"
-
-    # returns a Deferred that returns None
-    def buildStarted(self, key, build):
-        return self.send(build, key[2])
-
-    # returns a Deferred that returns None
-    def buildFinished(self, key, build):
-        return self.send(build, key[2])
 
     def getExtraParams(self, build):
         return {}
