@@ -183,36 +183,24 @@ class SlackStatusPush(ReporterBase):
         # We only use the first report, even if multiple are passed
         report = reports[0]
         print(report)
-        # We also only report on the first build, even if multiple are present
-        build = report["builds"][0]
-        print(report["builds"])
 
         postData = yield self.getBuildDetailsAndSendMessage(report)
         if not postData:
             return
 
-        sourcestamps = build["buildset"]["sourcestamps"]
-
-        for sourcestamp in sourcestamps:
-            sha = sourcestamp["revision"]
-            if sha is None:
-                logger.info("no special revision for this")
-
-            logger.info("posting to {url}", url=self.endpoint)
-            try:
-                print(postData)
-                response = yield self._http.post("", json=postData)
-                if response.code != 200:
-                    content = yield response.content()
-                    logger.error(
-                        "{code}: unable to upload status: {content}",
-                        code=response.code,
-                        content=content,
-                    )
-            except Exception as e:
+        logger.info("posting to {url}", url=self.endpoint)
+        try:
+            print(postData)
+            response = yield self._http.post("", json=postData)
+            if response.code != 200:
+                content = yield response.content()
                 logger.error(
-                    "Failed to send status for {repo} at {sha}: {error}",
-                    repo=sourcestamp["repository"],
-                    sha=sha,
-                    error=e,
+                    "{code}: unable to upload status: {content}",
+                    code=response.code,
+                    content=content,
                 )
+        except Exception as e:
+            logger.error(
+                "Failed to send status: {error}",
+                error=e,
+            )
