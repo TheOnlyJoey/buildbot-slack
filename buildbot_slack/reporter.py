@@ -8,8 +8,8 @@ from buildbot.reporters.base import ReporterBase
 from buildbot.reporters.generators.build import BuildStatusGenerator
 from buildbot.reporters.message import MessageFormatterFunction
 from buildbot.util import httpclientservice
-from buildbot.util.logger import Logger
 from twisted.internet import defer
+from twisted.logger import Logger
 
 logger = Logger()
 
