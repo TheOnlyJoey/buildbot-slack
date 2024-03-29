@@ -14,14 +14,15 @@ from twisted.logger import Logger
 logger = Logger()
 
 STATUS_EMOJIS = {
-    "success": ":white_check_mark:",
-    "warnings": ":meow_wow:",
-    "failure": ":x:",
-    "skipped": ":slam:",
-    "exception": ":skull:",
-    "retry": ":facepalm:",
-    "cancelled": ":slam:",
+    "success": ":relaxed:",
+    "warnings": ":point_up:",
+    "failure": ":skull_and_crossbones:",
+    "skipped": ":point_up:",
+    "exception": ":point_up:",
+    "retry": ":point_up:",
+    "cancelled": ":point_up:",
 }
+
 STATUS_COLORS = {
     "success": "#36a64f",
     "warnings": "#fc8c03",
@@ -82,6 +83,7 @@ class SlackStatusPush(ReporterBase):
 
     def _create_default_generators(self):
         formatter = MessageFormatterFunction(lambda context: context['build'], 'json')
+
         return [
             BuildStatusGenerator(message_formatter=formatter, report_new=True)
         ]
@@ -155,6 +157,7 @@ class SlackStatusPush(ReporterBase):
                     "fields": fields,
                 }
             )
+
         return attachments
 
     @defer.inlineCallbacks
@@ -167,16 +170,19 @@ class SlackStatusPush(ReporterBase):
             attachments = yield self.getAttachments(build)
             if attachments:
                 postData["attachments"] = attachments
-        else:
-            text += "\n here: " + build["url"]
 
         postData["text"] = text
+
         return postData
 
     def getMessage(self, report):
         build = report["builds"][0]
         emoji = STATUS_EMOJIS.get(statusToString(build["results"]), ":hourglass_flowing_sand:")
-        return f"{emoji} {report['body']}"
+        url = build["url"]
+        buildername = build['properties']['buildername'][0]
+        state = build['state_string']
+
+        return f"{emoji} <{url}|{buildername}> - {state}"
 
     @defer.inlineCallbacks
     def sendMessage(self, reports):
