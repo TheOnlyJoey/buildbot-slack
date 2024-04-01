@@ -23,17 +23,6 @@ STATUS_EMOJIS = {
     "cancelled": ":point_up:",
 }
 
-STATUS_COLORS = {
-    "success": "#36a64f",
-    "warnings": "#fc8c03",
-    "failure": "#fc0303",
-    "skipped": "#fc8c03",
-    "exception": "#fc0303",
-    "retry": "#fc8c03",
-    "cancelled": "#fc8c03",
-}
-
-
 class SlackStatusPush(ReporterBase):
     name = "SlackStatusPush"
     neededDetails = dict(wantProperties=True)
@@ -54,10 +43,7 @@ class SlackStatusPush(ReporterBase):
     def reconfigService(
         self,
         endpoint,
-        attachments=False,
         blocks=True,
-        commitersInAttachments=False,
-        repositoryInAttachments=False,
         generators=None,
         debug=None,
         verify=None,
@@ -72,10 +58,7 @@ class SlackStatusPush(ReporterBase):
         yield super().reconfigService(generators=generators, **kwargs)
 
         self.endpoint = endpoint
-        self.attachments = attachments
         self.blocks = blocks
-        self.commitersInAttachments = commitersInAttachments
-        self.repositoryInAttachments = repositoryInAttachments
         self._http = yield httpclientservice.HTTPClientService.getService(
             self.master,
             self.endpoint,
@@ -133,88 +116,11 @@ class SlackStatusPush(ReporterBase):
         return blocks
 
     @defer.inlineCallbacks
-    def getAttachments(self, build):
-        sourcestamps = build["buildset"]["sourcestamps"]
-        attachments = []
-
-        for sourcestamp in sourcestamps:
-            sha = sourcestamp["revision"]
-
-            title = "Build #{buildid}".format(buildid=build["buildid"])
-
-            project = sourcestamp["project"]
-            if project:
-                title += " for {project} {sha}".format(project=project, sha=sha)
-
-            sub_build = bool(build["buildset"]["parent_buildid"])
-            if sub_build:
-                title += " {relationship}: #{parent_build_id}".format(
-                    relationship=build["buildset"]["parent_relationship"],
-                    parent_build_id=build["buildset"]["parent_buildid"],
-                )
-
-            fields = []
-            if not sub_build:
-                branch = sourcestamp["branch"]
-                if branch:
-                    fields.append({"title": "Branch", "value": branch, "short": True})
-
-                if self.repositoryInAttachments:
-                    repository = sourcestamp["repository"]
-                    if repository:
-                        fields.append(
-                            {
-                                "title": "Repository",
-                                "value": repository,
-                                "short": True
-                            }
-                        )
-
-                if self.commitersInAttachments:
-                    users = yield utils.getResponsibleUsersForBuild(self.master, build["buildid"])
-                    if users:
-                        fields.append(
-                            {
-                                "title": "Committers",
-                                "value": ", ".join(users),
-                                "short": True
-                            }
-                        )
-
-                builder_name = build["builder"]["name"]
-                fields.append(
-                    {
-                        "title": "Builder",
-                        "value": builder_name,
-                        "short": True
-                    }
-                )
-
-            attachments.append(
-                {
-                    "title": title,
-                    "title_link": build["url"],
-                    "fallback": "{}: <{}>".format(title, build["url"]),
-                    "text": "Status: *{status}*".format(status=statusToString(build["results"])),
-                    "color": STATUS_COLORS.get(statusToString(build["results"]), ""),
-                    "mrkdwn_in": ["text", "title", "fallback"],
-                    "fields": fields,
-                }
-            )
-
-        return attachments
-
-    @defer.inlineCallbacks
     def getBuildDetailsAndSendMessage(self, report):
         build = report["builds"][0]
         text = yield self.getMessage(report)
 
         postData = {}
-        if self.attachments:
-            attachments = yield self.getAttachments(build)
-            if attachments:
-                postData["attachments"] = attachments
-
         if self.blocks:
             blocks = yield self.getBlocks(build, text)
             if blocks:
