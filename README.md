@@ -34,6 +34,7 @@ c['services'].append(reporters.SlackStatusPush(
 ### Additional Options:
 ```
   attachments = True
+  blocks = True
   commitersInAttachments = True
   repositoryInAttachments = True
 ```

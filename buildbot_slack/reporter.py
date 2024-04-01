@@ -54,7 +54,8 @@ class SlackStatusPush(ReporterBase):
     def reconfigService(
         self,
         endpoint,
-        attachments=True,
+        attachments=False,
+        blocks=True,
         commitersInAttachments=False,
         repositoryInAttachments=False,
         generators=None,
@@ -72,6 +73,7 @@ class SlackStatusPush(ReporterBase):
 
         self.endpoint = endpoint
         self.attachments = attachments
+        self.blocks = blocks
         self.commitersInAttachments = commitersInAttachments
         self.repositoryInAttachments = repositoryInAttachments
         self._http = yield httpclientservice.HTTPClientService.getService(
@@ -87,6 +89,48 @@ class SlackStatusPush(ReporterBase):
         return [
             BuildStatusGenerator(message_formatter=formatter, report_new=True)
         ]
+
+    def getBlocks(self, build, text):
+        blocks = []
+        fields = []
+
+        fields.append(
+            {
+                "type": "mrkdwn",
+                "text": "*Worker*"
+            }
+        )
+
+        fields.append(
+            {
+                "type": "mrkdwn",
+                "text": "*Build Reason*"
+            }
+        )
+
+        fields.append(
+            {
+                "type": "plain_text",
+                "text": build['properties']['workername'][0]
+            }
+        )
+
+        fields.append(
+            {
+                "type": "plain_text",
+                "text": build['properties'].get('reason', ("(unknown)",))[0]
+            }
+        )
+
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": text},
+                "fields": fields
+            }
+        )
+
+        return blocks
 
     @defer.inlineCallbacks
     def getAttachments(self, build):
@@ -170,6 +214,11 @@ class SlackStatusPush(ReporterBase):
             attachments = yield self.getAttachments(build)
             if attachments:
                 postData["attachments"] = attachments
+
+        if self.blocks:
+            blocks = yield self.getBlocks(build, text)
+            if blocks:
+                postData["blocks"] = blocks
 
         postData["text"] = text
 
