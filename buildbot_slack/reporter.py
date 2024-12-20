@@ -8,6 +8,7 @@ from buildbot.reporters.base import ReporterBase
 from buildbot.reporters.generators.build import BuildStatusGenerator
 from buildbot.reporters.message import MessageFormatterFunction
 from buildbot.util import httpclientservice
+from buildbot.util.httpclientservice import HTTPSession
 from twisted.internet import defer
 from twisted.logger import Logger
 
@@ -59,12 +60,6 @@ class SlackStatusPush(ReporterBase):
 
         self.endpoint = endpoint
         self.blocks = blocks
-        self._http = yield httpclientservice.HTTPClientService.getService(
-            self.master,
-            self.endpoint,
-            debug=self.debug,
-            verify=self.verify,
-        )
 
     def _create_default_generators(self):
         formatter = MessageFormatterFunction(lambda context: context['build'], 'json')
@@ -152,7 +147,8 @@ class SlackStatusPush(ReporterBase):
         logger.info("posting to {url}", url=self.endpoint)
         try:
             print(postData)
-            response = yield self._http.post("", json=postData)
+            s = HTTPSession(self.master.httpservice, self.endpoint)
+            response = yield s.post("", json=postData)
             if response.code != 200:
                 content = yield response.content()
                 logger.error(
